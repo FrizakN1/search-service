@@ -1,21 +1,54 @@
 package main
 
 import (
-  "fmt"
+	"context"
+	"fmt"
+	"google.golang.org/grpc"
+	"log"
+	"net"
+	"os"
+	"search-service/handlers"
+	"search-service/interceptors"
+	"search-service/kafka"
+	"search-service/proto/searchpb"
+	"search-service/search"
 )
 
-//TIP <p>To run your code, right-click the code and select <b>Run</b>.</p> <p>Alternatively, click
-// the <icon src="AllIcons.Actions.Execute"/> icon in the gutter and select the <b>Run</b> menu item from here.</p>
-
 func main() {
-  //TIP <p>Press <shortcut actionId="ShowIntentionActions"/> when your caret is at the underlined text
-  // to see how GoLand suggests fixing the warning.</p><p>Alternatively, if available, click the lightbulb to view possible fixes.</p>
-  s := "gopher"
-  fmt.Println("Hello and welcome, %s!", s)
+	esClient, err := search.NewElasticClient(fmt.Sprintf("%s:%s", os.Getenv("ELASTICSEARCH_ADDRESS"), os.Getenv("ELASTICSEARCH_PORT")))
+	if err != nil {
+		log.Fatalln(err)
+		return
+	}
 
-  for i := 1; i <= 5; i++ {
-	//TIP <p>To start your debugging session, right-click your code in the editor and select the Debug option.</p> <p>We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-	// for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.</p>
-	fmt.Println("i =", 100/i)
-  }
+	consumerManager := kafka.NewConsumerManager([]kafka.Consumer{
+		kafka.NewNodeConsumer(kafka.NewKafkaReader("index-node"), esClient),
+		kafka.NewHardwareConsumer(kafka.NewKafkaReader("index-hardware"), esClient),
+		kafka.NewAddressConsumer(kafka.NewKafkaReader("index-address"), esClient),
+	})
+
+	consumerManager.StartAll(context.Background())
+	defer consumerManager.CloseAll()
+
+	searchService := &handlers.SearchServiceServer{
+		NodeSearch:     &search.DefaultNodeSearch{Elastic: esClient},
+		HardwareSearch: &search.DefaultHardwareSearch{Elastic: esClient},
+		AddressSearch:  &search.DefaultAddressSearch{Elastic: esClient},
+	}
+
+	lis, err := net.Listen(os.Getenv("APP_NETWORK"), fmt.Sprintf(":%s", os.Getenv("APP_PORT")))
+	if err != nil {
+		log.Fatalln(err)
+		return
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			interceptors.LoggingInterceptor(),
+		),
+	)
+
+	searchpb.RegisterSearchServiceServer(grpcServer, searchService)
+	log.Printf("Search-service started on :%s\n", os.Getenv("APP_PORT"))
+	grpcServer.Serve(lis)
 }
