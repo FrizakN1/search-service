@@ -86,7 +86,6 @@ func (s *DefaultAddressSearch) IndexAddresses(ctx context.Context, addresses []*
 }
 
 func (s *DefaultAddressSearch) SearchAddresses(ctx context.Context, search *searchpb.SearchAddress) ([]int32, int32, error) {
-	var buf bytes.Buffer
 
 	//searchQuery := map[string]interface{}{
 	//	"from": search.Offset,
@@ -114,166 +113,171 @@ func (s *DefaultAddressSearch) SearchAddresses(ctx context.Context, search *sear
 	//		},
 	//	},
 	//}
-	var searchQuery map[string]interface{}
-
-	if search.HouseQuery == "" {
-		searchQuery = map[string]interface{}{
-			"from": search.Offset,
-			"size": search.Limit,
-			"query": map[string]interface{}{
-				"match": map[string]interface{}{
-					"street_name.edge": map[string]interface{}{
-						"query": search.StreetQuery,
-						"boost": 3,
-					},
-				},
-			},
-			"_source": []string{
-				"street_name",
-				"street_type_short_name",
-			},
-			"sort": []map[string]interface{}{
-				{
-					"_score": map[string]interface{}{
-						"order": "desc",
-					},
-				},
-				{
-					"house_name.keyword": map[string]interface{}{
-						"order": "asc",
-					},
-				},
-			},
-		}
-	} else {
-		searchQuery = map[string]interface{}{
-			"from": search.Offset,
-			"size": search.Limit,
-			"query": map[string]interface{}{
-				"function_score": map[string]interface{}{
-					"query": map[string]interface{}{
-						"bool": map[string]interface{}{
-							"must": []map[string]interface{}{
-								{
-									"match": map[string]interface{}{
-										"street_name.edge": map[string]interface{}{
-											"query": search.StreetQuery,
-											"boost": 3,
-										},
-									},
-								},
-							},
-							"should": []map[string]interface{}{
-								{
-									"match": map[string]interface{}{
-										"house_name.edge": map[string]interface{}{
-											"query": search.HouseQuery,
-										},
-									},
-								},
-							},
-							"minimum_should_match": 1,
-							//"filter": []map[string]interface{}{
-							//	{
-							//		"bool": map[string]interface{}{
-							//			"should": []map[string]interface{}{
-							//				{
-							//					"match": map[string]interface{}{
-							//						"house_name.edge": search.HouseQuery,
-							//					},
-							//				},
-							//				{
-							//					"bool": map[string]interface{}{
-							//						"must_not": map[string]interface{}{
-							//							"exists": map[string]interface{}{
-							//								"field": "house_name",
-							//							},
-							//						},
-							//					},
-							//				},
-							//			},
-							//			"minimum_should_match": 0,
-							//		},
-							//	},
-							//},
-						},
-					},
-					"functions": []map[string]interface{}{
-						{
-							"filter": map[string]interface{}{
-								"term": map[string]interface{}{
-									"house_name.keyword": search.HouseQuery,
-								},
-							},
-							"weight": 100,
-						},
-						{
-							"filter": map[string]interface{}{
-								"bool": map[string]interface{}{
-									"must": []map[string]interface{}{
-										{
-											"prefix": map[string]interface{}{
-												"house_name.keyword": search.HouseQuery,
-											},
-										},
-										{
-											"regexp": map[string]interface{}{
-												"house_name.keyword": search.HouseQuery + "[^0-9].*",
-											},
-										},
-									},
-								},
-							},
-							"weight": 50,
-						},
-						{
-							"filter": map[string]interface{}{
-								"match": map[string]interface{}{
-									"house_name.edge": search.HouseQuery,
-								},
-							},
-							"weight": 25,
-						},
-						//{
-						//	"filter": map[string]interface{}{
-						//		"regexp": map[string]interface{}{
-						//			"house_name.keyword": ".*\\/.*",
-						//		},
-						//	},
-						//	"weight": 0.8,
-						//},
-						//{
-						//	"filter": map[string]interface{}{
-						//		"bool": map[string]interface{}{
-						//			"must_not": map[string]interface{}{
-						//				"regexp": map[string]interface{}{
-						//					"house_name.keyword": ".*\\/.*",
-						//				},
-						//			},
-						//		},
-						//	},
-						//	"weight": 1.2,
-						//},
-					},
-					"score_mode": "sum",
-				},
-			},
-			"sort": []map[string]interface{}{
-				{
-					"_score": map[string]interface{}{
-						"order": "desc",
-					},
-				},
-				{
-					"house_name.keyword": map[string]interface{}{
-						"order": "asc",
-					},
-				},
-			},
-			"track_total_hits": true,
-		}
+	//var searchQuery map[string]interface{}
+	//
+	//if search.HouseQuery == "" {
+	//	searchQuery = map[string]interface{}{
+	//		"from": search.Offset,
+	//		"size": search.Limit,
+	//		"query": map[string]interface{}{
+	//			"match": map[string]interface{}{
+	//				"street_name.edge": map[string]interface{}{
+	//					"query": search.StreetQuery,
+	//					"boost": 3,
+	//				},
+	//			},
+	//		},
+	//		"_source": []string{
+	//			"street_name",
+	//			"street_type_short_name",
+	//		},
+	//		"sort": []map[string]interface{}{
+	//			{
+	//				"_score": map[string]interface{}{
+	//					"order": "desc",
+	//				},
+	//			},
+	//			{
+	//				"house_name.keyword": map[string]interface{}{
+	//					"order": "asc",
+	//				},
+	//			},
+	//		},
+	//	}
+	//} else {
+	//	searchQuery = map[string]interface{}{
+	//		"from": search.Offset,
+	//		"size": search.Limit,
+	//		"query": map[string]interface{}{
+	//			"function_score": map[string]interface{}{
+	//				"query": map[string]interface{}{
+	//					"bool": map[string]interface{}{
+	//						"must": []map[string]interface{}{
+	//							{
+	//								"match": map[string]interface{}{
+	//									"street_name.edge": map[string]interface{}{
+	//										"query": search.StreetQuery,
+	//										"boost": 3,
+	//									},
+	//								},
+	//							},
+	//						},
+	//						"should": []map[string]interface{}{
+	//							{
+	//								"match": map[string]interface{}{
+	//									"house_name.edge": map[string]interface{}{
+	//										"query": search.HouseQuery,
+	//									},
+	//								},
+	//							},
+	//						},
+	//						"minimum_should_match": 1,
+	//						//"filter": []map[string]interface{}{
+	//						//	{
+	//						//		"bool": map[string]interface{}{
+	//						//			"should": []map[string]interface{}{
+	//						//				{
+	//						//					"match": map[string]interface{}{
+	//						//						"house_name.edge": search.HouseQuery,
+	//						//					},
+	//						//				},
+	//						//				{
+	//						//					"bool": map[string]interface{}{
+	//						//						"must_not": map[string]interface{}{
+	//						//							"exists": map[string]interface{}{
+	//						//								"field": "house_name",
+	//						//							},
+	//						//						},
+	//						//					},
+	//						//				},
+	//						//			},
+	//						//			"minimum_should_match": 0,
+	//						//		},
+	//						//	},
+	//						//},
+	//					},
+	//				},
+	//				"functions": []map[string]interface{}{
+	//					{
+	//						"filter": map[string]interface{}{
+	//							"term": map[string]interface{}{
+	//								"house_name.keyword": search.HouseQuery,
+	//							},
+	//						},
+	//						"weight": 100,
+	//					},
+	//					{
+	//						"filter": map[string]interface{}{
+	//							"bool": map[string]interface{}{
+	//								"must": []map[string]interface{}{
+	//									{
+	//										"prefix": map[string]interface{}{
+	//											"house_name.keyword": search.HouseQuery,
+	//										},
+	//									},
+	//									{
+	//										"regexp": map[string]interface{}{
+	//											"house_name.keyword": search.HouseQuery + "[^0-9].*",
+	//										},
+	//									},
+	//								},
+	//							},
+	//						},
+	//						"weight": 50,
+	//					},
+	//					{
+	//						"filter": map[string]interface{}{
+	//							"match": map[string]interface{}{
+	//								"house_name.edge": search.HouseQuery,
+	//							},
+	//						},
+	//						"weight": 25,
+	//					},
+	//					//{
+	//					//	"filter": map[string]interface{}{
+	//					//		"regexp": map[string]interface{}{
+	//					//			"house_name.keyword": ".*\\/.*",
+	//					//		},
+	//					//	},
+	//					//	"weight": 0.8,
+	//					//},
+	//					//{
+	//					//	"filter": map[string]interface{}{
+	//					//		"bool": map[string]interface{}{
+	//					//			"must_not": map[string]interface{}{
+	//					//				"regexp": map[string]interface{}{
+	//					//					"house_name.keyword": ".*\\/.*",
+	//					//				},
+	//					//			},
+	//					//		},
+	//					//	},
+	//					//	"weight": 1.2,
+	//					//},
+	//				},
+	//				"score_mode": "sum",
+	//			},
+	//		},
+	//		"sort": []map[string]interface{}{
+	//			{
+	//				"_score": map[string]interface{}{
+	//					"order": "desc",
+	//				},
+	//			},
+	//			{
+	//				"house_name.keyword": map[string]interface{}{
+	//					"order": "asc",
+	//				},
+	//			},
+	//		},
+	//		"track_total_hits": true,
+	//	}
+	//}
+	searchQuery, err := buildAddressSearchQuery(search)
+	if err != nil {
+		return nil, 0, err
 	}
 
+	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(searchQuery); err != nil {
 		return nil, 0, err
 	}
@@ -441,4 +445,101 @@ func (s *DefaultAddressSearch) EnsureIndexAddress(ctx context.Context) error {
 	defer createRes.Body.Close()
 
 	return nil
+}
+
+func buildAddressSearchQuery(search *searchpb.SearchAddress) (map[string]interface{}, error) {
+	query := map[string]interface{}{
+		"from":             search.Offset,
+		"size":             search.Limit,
+		"track_total_hits": true,
+	}
+
+	// --- базовый bool ---
+	boolQuery := map[string]interface{}{
+		"must": []map[string]interface{}{
+			{
+				"match": map[string]interface{}{
+					"street_name": map[string]interface{}{
+						"query": search.StreetQuery,
+						"boost": 3,
+					},
+				},
+			},
+		},
+	}
+
+	// --- дом, если указан ---
+	if search.HouseQuery != "" {
+		boolQuery["should"] = []map[string]interface{}{
+			{
+				"match": map[string]interface{}{
+					"house_name": search.HouseQuery,
+				},
+			},
+		}
+		boolQuery["minimum_should_match"] = 1
+	}
+
+	// --- function_score ---
+	query["query"] = map[string]interface{}{
+		"function_score": map[string]interface{}{
+			"query": map[string]interface{}{
+				"bool": boolQuery,
+			},
+			"functions":  buildHouseScoring(search.HouseQuery),
+			"score_mode": "sum",
+		},
+	}
+
+	// --- сортировка ---
+	query["sort"] = []map[string]interface{}{
+		{
+			"_score": map[string]interface{}{
+				"order": "desc",
+			},
+		},
+		{
+			"house_name.keyword": map[string]interface{}{
+				"order": "asc",
+			},
+		},
+	}
+
+	return query, nil
+}
+
+func buildHouseScoring(house string) []map[string]interface{} {
+	if house == "" {
+		return nil
+	}
+
+	return []map[string]interface{}{
+		// 1. точное совпадение: "3" == "3"
+		{
+			"filter": map[string]interface{}{
+				"term": map[string]interface{}{
+					"house_name.keyword": house,
+				},
+			},
+			"weight": 100,
+		},
+		// 2. числовой префикс + буква: "3а"
+		{
+			"filter": map[string]interface{}{
+				"regexp": map[string]interface{}{
+					"house_name.keyword": house + "[^0-9].*",
+				},
+			},
+			"weight": 50,
+		},
+		// 3. начинается с номера: "3/1", "3к2"
+		{
+			"filter": map[string]interface{}{
+				"prefix": map[string]interface{}{
+					"house_name.keyword": house,
+				},
+			},
+			"weight": 25,
+		},
+	}
 }
